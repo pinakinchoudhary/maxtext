@@ -609,6 +609,29 @@ __all__.append("mldiagnostics_modules")
 
 # ------------------------- TensorBoardX --------------------------
 
+
+class StubSummaryWriter:
+  """Stubbed TensorBoardX SummaryWriter replacement."""
+
+  def __init__(self, *args, **kwargs):  # pylint: disable=unused-argument
+    del args, kwargs
+
+  def add_text(self, *args, **kwargs):
+    pass
+
+  def add_scalar(self, *args, **kwargs):
+    pass
+
+  def add_histogram(self, *args, **kwargs):
+    pass
+
+  def flush(self):
+    pass
+
+  def close(self):
+    pass
+
+
 try:
   if not is_decoupled():  # Only attempt real import when not decoupled
     from tensorboardX import writer  # type: ignore  # pylint: disable=import-outside-toplevel,unused-import
@@ -619,30 +642,10 @@ try:
 except Exception:  # pragma: no cover - provide stub fallback  # pylint: disable=broad-exception-caught
   _TENSORBOARDX_AVAILABLE = False
 
-  class _StubSummaryWriter:
-    """Stubbed TensorBoardX SummaryWriter replacement."""
-
-    def __init__(self, *args, **kwargs):  # pylint: disable=unused-argument
-      del args, kwargs
-
-    def add_text(self, *args, **kwargs):
-      pass
-
-    def add_scalar(self, *args, **kwargs):
-      pass
-
-    def add_histogram(self, *args, **kwargs):
-      pass
-
-    def flush(self):
-      pass
-
-    def close(self):
-      pass
-
   class writer:  # pylint: disable=too-few-public-methods
-    SummaryWriter = _StubSummaryWriter
+    SummaryWriter = StubSummaryWriter
 
 
 __all__.append("writer")
 __all__.append("_TENSORBOARDX_AVAILABLE")
+__all__.append("StubSummaryWriter")

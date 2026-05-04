@@ -92,7 +92,7 @@ class MetricLogger:
   """
 
   def __init__(self, config, learning_rate_schedule):
-    self.writer = max_utils.initialize_summary_writer(config.tensorboard_dir, config.run_name)
+    self.writer = max_utils.initialize_summary_writer(config.tensorboard_dir, config.run_name, config.enable_tensorboard)
     self.config = config
     self.metadata = {}
     self.running_gcs_metrics = [] if config.gcs_metrics else None
@@ -295,6 +295,8 @@ class MetricLogger:
 
   def write_setup_info_to_tensorboard(self, params):
     """Writes setup information like train config params, num model params, and XLA flags to TensorBoard."""
+    if not self.config.enable_tensorboard:
+      return
     num_model_parameters = max_utils.calculate_num_params_from_pytree(params)
     self.metadata[MetadataKey.PER_DEVICE_TFLOPS], _, _ = maxtext_utils.calculate_tflops_training_per_device(self.config)
     self.metadata[MetadataKey.PER_DEVICE_TOKENS] = maxtext_utils.calculate_tokens_training_per_device(self.config)

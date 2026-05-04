@@ -90,7 +90,7 @@ class Gpt3LayerNorm(nnx.Module):
     if self.reductions_in_fp32:
       normed_inputs = normed_inputs.astype(self.dtype)
 
-    scale = self.scale.value
+    scale = self.scale[...]
     # Move scale to device if parameter offloading is enabled
     if self.parameter_memory_host_offload:
       max_logging.log("gpt3.py: Moving scale parameter to device")
@@ -106,7 +106,7 @@ class Gpt3LayerNorm(nnx.Module):
     )
 
     if self.bias is not None:
-      bias = self.bias.value
+      bias = self.bias[...]
       bias = jnp.asarray(bias, self.dtype)
       output += bias
     return output
@@ -354,7 +354,6 @@ class Gpt3DecoderLayer(nnx.Module):
       rngs: nnx.Rngs,
       quant: Optional[Quant] = None,
   ):
-
     self.config = config
     self.mesh = mesh
     self.quant = quant

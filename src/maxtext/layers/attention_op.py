@@ -902,7 +902,7 @@ class AttentionOp(nnx.Module):
 
       local_out, local_max, local_sum = impl(query, key, value, lengths, self.ragged_block_size)
       if record_max_logits:
-        self.sow("intermediates", "max_logits", local_max)
+        self.max_logits = nnx.Intermediate(local_max)
       return local_out, local_max, local_sum
 
     # 'vllm_rpa' uses the same dot-attention wrapper but routes to the vLLM
@@ -951,7 +951,7 @@ class AttentionOp(nnx.Module):
             record_max_logits=record_max_logits,
         )
         if max_logits is not None:
-          self.sow("intermediates", "max_logits", max_logits)
+          self.max_logits = nnx.Intermediate(max_logits)
         return out, None, None
 
       else:
@@ -1861,7 +1861,7 @@ class AttentionOp(nnx.Module):
       max_logits_per_group = jnp.max(attn_weights, axis=(-2, -1))
       b, n_kv, g = max_logits_per_group.shape
       max_logits = max_logits_per_group.reshape(b, n_kv * g)
-      self.sow("intermediates", "max_logits", max_logits)
+      self.max_logits = nnx.Intermediate(max_logits)
 
     return self.compute_local_attention(attn_weights, value, q_seq_len, model_mode, wv_product_einsum, sinks)
 

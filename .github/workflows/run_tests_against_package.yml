@@ -139,9 +139,9 @@ jobs:
             PYTHON_EXE=".venv/bin/python3"
             # Ensure pytest-cov is available and enable coverage flags
             uv pip install pytest-cov
-            PYTEST_COV_ARGS="--cov=MaxText --cov=maxtext --cov-report=xml --cov-report=term"
+            PYTEST_COV_ARGS="--cov=maxtext --cov-report=xml --cov-report=term"
           fi
-          export PYTHONPATH="${pwd}/src${PYTHONPATH:+:${PYTHONPATH}}"
+          export PYTHONPATH="${PWD}/src${PYTHONPATH:+:${PYTHONPATH}}"
 
           if [ "${INPUTS_IS_SCHEDULED_RUN}" == "true" ]; then
             FINAL_PYTEST_MARKER="${INPUTS_PYTEST_MARKER}"
@@ -209,7 +209,7 @@ jobs:
         continue-on-error: true
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage.xml
+          files: ./coverage.xml
           # If scheduled, upload to scheduled flag only. If PR, upload to regular flag only.
           flags: ${{ inputs.is_scheduled_run == 'true' && 'scheduled' || 'regular' }}
           verbose: true

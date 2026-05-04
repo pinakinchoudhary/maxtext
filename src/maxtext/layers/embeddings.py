@@ -152,7 +152,7 @@ class Embed(nnx.Module):
       raise ValueError("Input type must be an integer or unsigned integer.")
 
     embedding = jnp.asarray(
-        _maybe_move_embedding_to_device(self.embedding.value, self.config),
+        _maybe_move_embedding_to_device(self.embedding.get_value(), self.config),
         self.dtype,
     )
 
@@ -196,7 +196,7 @@ class Embed(nnx.Module):
       Commonly used for weight-sharing between embeddings and logit transform
       in NLP models.
     """
-    embedding = self.embedding.value
+    embedding = self.embedding.get_value()
     attend_dtype = self.attend_dtype if self.attend_dtype is not None else self.dtype
     return attend_on_embedding(query, embedding, attend_dtype, self.config, out_sharding)
 

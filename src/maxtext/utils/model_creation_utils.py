@@ -852,9 +852,9 @@ def from_pretrained(
           # structure of linen checkpoint: {'params': {'params': {'decoder': ...}}}
           is_nnx_checkpoint = False
           target_for_restore = jax.tree.map(
-              lambda v: v.value,
+              lambda v: v[...],
               sharded_state,
-              is_leaf=lambda n: hasattr(n, "value"),
+              is_leaf=lambda n: isinstance(n, nnx.Variable),
           )
 
           target_for_restore = _adjust_target_for_moe_fusion(
@@ -876,7 +876,7 @@ def from_pretrained(
           # NNX checkpoint: {'decoder': {'value': ...}}, or NNX-RL with extra 'base' nesting.
           # Restore only nnx.Param — RNG variable shapes may differ between checkpoint and model.
           target_for_restore = jax.tree.map(
-              lambda v: {"value": v.value},
+              lambda v: {"value": v[...]},
               sharded_state,
               is_leaf=lambda n: isinstance(n, nnx.Variable),
           )
@@ -892,7 +892,7 @@ def from_pretrained(
         # Free memory used by initial sharded_state before restore, to make room for the incoming checkpoint arrays.
         def _free_device_memory(node):
           if isinstance(node, nnx.Variable) and not isinstance(node, nnx.RngState):
-            val = node.value
+            val = node[...]
           else:
             val = node
 
@@ -922,7 +922,7 @@ def from_pretrained(
 
         if checkpoint:
           model_arrays = jax.tree.map(
-              lambda v: v.value,
+              lambda v: v[...],
               sharded_state,
               is_leaf=lambda n: isinstance(n, nnx.Variable),
           )
@@ -934,7 +934,7 @@ def from_pretrained(
           # nnx.get_partition_spec returns Variables wrapping PartitionSpecs at the leaves;
           # unwrap to raw PartitionSpecs so _normalize_logical_axes can read them.
           logical_axes_tree = jax.tree.map(
-              lambda v: v.value,
+              lambda v: v.get_value(),
               specs,
               is_leaf=lambda n: isinstance(n, nnx.Variable),
           )
@@ -1024,7 +1024,7 @@ def setup_decode_state_from_nnx(model, config, rng, mesh):
   # Extract nnx.Param values, converting the State pytree to a plain nested dict.
   def _state_to_dict(tree):
     if isinstance(tree, nnx.Variable):
-      return tree.value
+      return tree.get_value()
     if hasattr(tree, "items") and not isinstance(tree, jax.Array):
       return {k: _state_to_dict(v) for k, v in tree.items()}
     return tree

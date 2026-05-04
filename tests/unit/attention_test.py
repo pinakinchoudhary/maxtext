@@ -614,10 +614,10 @@ class AttentionTest(parameterized.TestCase):
     )
 
     # Force unshared layer to copy weights from shared layer, mapping 'key' to 'value'
-    attention_no_share.query.kernel.value = attention_share_kv.query.kernel.value
-    attention_no_share.key.kernel.value = attention_share_kv.key.kernel.value
-    attention_no_share.value.kernel.value = attention_share_kv.key.kernel.value
-    attention_no_share.out.kernel.value = attention_share_kv.out.kernel.value
+    attention_no_share.query.kernel[...] = attention_share_kv.query.kernel[...]
+    attention_no_share.key.kernel[...] = attention_share_kv.key.kernel[...]
+    attention_no_share.value.kernel[...] = attention_share_kv.key.kernel[...]
+    attention_no_share.out.kernel[...] = attention_share_kv.out.kernel[...]
 
     output_no_share, _ = attention_no_share(
         lnx,

@@ -170,22 +170,22 @@ class PagedAttentionOp(nnx.Module):
 
     self.key_pages = nnx.Cache(
         jnp.zeros(self.kv_pages_shape, dtype=self.dtype),
-        sharding=self.kv_pages_axis_names,
+        out_sharding=self.kv_pages_axis_names,
     )
     self.value_pages = nnx.Cache(
         jnp.zeros(self.kv_pages_shape, dtype=self.dtype),
-        sharding=self.kv_pages_axis_names,
+        out_sharding=self.kv_pages_axis_names,
     )
 
   def _maybe_materialize_cache(self, cache: nnx.Cache) -> nnx.Cache:
     """Materializes the cache if it's currently a ShapeDtypeStruct."""
-    if isinstance(cache.value, jax.ShapeDtypeStruct):
+    if isinstance(cache.get_value(), jax.ShapeDtypeStruct):
       # This is needed because the Linen bridge lazily creates this state. We
       # need to ensure the cache state is accessible at runtime.
       # TODO: Delete this function when the to_linen bridge is no longer needed.
       return nnx.Cache(
           jnp.zeros(self.kv_pages_shape, dtype=self.dtype),
-          sharding=cache.sharding,
+          out_sharding=cache.get_metadata("out_sharding"),
       )
     return cache
 
@@ -204,8 +204,8 @@ class PagedAttentionOp(nnx.Module):
     self.key_pages = self._maybe_materialize_cache(self.key_pages)
     self.value_pages = self._maybe_materialize_cache(self.value_pages)
 
-    self.key_pages.value = nn.with_logical_constraint(self.key_pages.value, self.kv_pages_axis_names)
-    self.value_pages.value = nn.with_logical_constraint(self.value_pages.value, self.kv_pages_axis_names)
+    self.key_pages.set_value(nn.with_logical_constraint(self.key_pages.get_value(), self.kv_pages_axis_names))
+    self.value_pages.set_value(nn.with_logical_constraint(self.value_pages.get_value(), self.kv_pages_axis_names))
     return self.key_pages, self.value_pages
 
   def pad_qkv(self, *qkv):
@@ -264,9 +264,9 @@ class PagedAttentionOp(nnx.Module):
     is the batch_size is only 1
     """
     assert query.shape[0] == 1  # ensure the batch size is 0
-    # shape of key_pages_cache.value is [num_kv_heads, num_pages, tokens_per_page, head_dim]
-    k_p = jnp.permute_dims(key_pages_cache.value, (1, 2, 0, 3))
-    v_p = jnp.permute_dims(value_pages_cache.value, (1, 2, 0, 3))
+    # shape of key_pages_cache.get_value() is [num_kv_heads, num_pages, tokens_per_page, head_dim]
+    k_p = jnp.permute_dims(key_pages_cache.get_value(), (1, 2, 0, 3))
+    v_p = jnp.permute_dims(value_pages_cache.get_value(), (1, 2, 0, 3))
     c_q_l = jnp.array([0, page_state.sequence_lengths[0]])  # [0, prefill_true_length]
     num_seqs = jnp.array([1])
     query = query[0]  # [batch_size, max_num_tokens, num_kv_heads, head_dim] to [max_num_tokens, num_kv_heads, head_dim]
@@ -294,8 +294,8 @@ class PagedAttentionOp(nnx.Module):
     """Apply ragged input Paged Attention in decode only."""
     batch_size = query.shape[0]
     query = jnp.squeeze(query, axis=1)  # [batch_size, seq_len, n_kv_head, head_dim] to [batch_size, n_kv_head, head_dim]
-    k_p = jnp.permute_dims(key_pages_cache.value, (1, 2, 0, 3))
-    v_p = jnp.permute_dims(value_pages_cache.value, (1, 2, 0, 3))
+    k_p = jnp.permute_dims(key_pages_cache.get_value(), (1, 2, 0, 3))
+    v_p = jnp.permute_dims(value_pages_cache.get_value(), (1, 2, 0, 3))
     c_q_l = jnp.arange(batch_size + 1)  # one token per sequence
     num_seqs = jnp.array([batch_size])  # real number of requests, set it to batch_size
     result = paged_attention_kernel_v2.ragged_paged_attention(
@@ -352,8 +352,8 @@ class PagedAttentionOp(nnx.Module):
 
     return wrap_paged_attention(
         query,
-        key_pages_cache.value,
-        value_pages_cache.value,
+        key_pages_cache.get_value(),
+        value_pages_cache.get_value(),
         page_state.sequence_lengths,
         page_state.page_map,
         self.pages_per_compute_block,
@@ -441,12 +441,12 @@ class PagedAttentionOp(nnx.Module):
     ), f"prefill_step key/value should have the same shape, but getting {key.shape=} and {value.shape=} instead"
     batch_size, seq_len, n_kv_head, head_dim = key.shape
     assert seq_len % self.tokens_per_page == 0, f"seq_length {seq_len} and  tokens_per_page {self.tokens_per_page}"
-    assert key_pages_cache.value.shape == value_pages_cache.value.shape, (
+    assert key_pages_cache.get_value().shape == value_pages_cache.get_value().shape, (
         f"prefill_step key/value_pages_cache should have the same shape, but "
         f"getting {key_pages_cache.shape=} and {value_pages_cache.shape=} instead"
     )
 
-    v_n_kv, _, v_p, v_d = key_pages_cache.value.shape
+    v_n_kv, _, v_p, v_d = key_pages_cache.get_value().shape
     assert v_n_kv == n_kv_head, f"{v_n_kv=} {n_kv_head=}"
     assert v_p == self.tokens_per_page, f"{v_p=} {self.tokens_per_page=}"
     assert v_d == head_dim, f"{v_d=} {head_dim=}"
@@ -485,13 +485,13 @@ class PagedAttentionOp(nnx.Module):
         ),
     )
 
-    key_pages_cache.value = nn.with_logical_constraint(key, self.kv_pages_axis_names)
-    value_pages_cache.value = nn.with_logical_constraint(value, self.kv_pages_axis_names)
+    key_pages_cache.set_value(nn.with_logical_constraint(key, self.kv_pages_axis_names))
+    value_pages_cache.set_value(nn.with_logical_constraint(value, self.kv_pages_axis_names))
 
   def update_decode_step_pages(self, key_pages_cache, value_pages_cache, key, value, page_state):
     """Update decode-step pages"""
-    key_pages = key_pages_cache.value
-    value_pages = value_pages_cache.value
+    key_pages = key_pages_cache.get_value()
+    value_pages = value_pages_cache.get_value()
 
     batch_size, _, kv_heads, head_dim = key.shape
     kv_heads, _, _, head_dim = key_pages.shape
@@ -511,6 +511,6 @@ class PagedAttentionOp(nnx.Module):
     key_pages_updated = key_pages.at[kv_indices, broadcast_pages, broadcast_pos].set(new_key)
     value_pages_updated = value_pages.at[kv_indices, broadcast_pages, broadcast_pos].set(new_value)
 
-    key_pages_cache.value = key_pages_updated
-    value_pages_cache.value = value_pages_updated
+    key_pages_cache.set_value(key_pages_updated)
+    value_pages_cache.set_value(value_pages_updated)
     return key_pages_cache, value_pages_cache

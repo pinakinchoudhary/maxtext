@@ -95,6 +95,13 @@ def preprocessing_pipeline(
     hf_access_token: str = "",
 ):
   """pipeline for preprocessing TFDS dataset."""
+  missing = [c for c in data_column_names if c not in dataset.element_spec]
+  if missing:
+    raise ValueError(
+        f"Column {missing} not found in dataset. Available columns: {sorted(dataset.element_spec.keys())}. "
+        "Please set train_data_columns or eval_data_columns accordingly."
+    )
+
   if not use_dpo:
     assert len(data_column_names) == 1
     dataset = dataset.map(

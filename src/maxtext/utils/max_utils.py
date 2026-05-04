@@ -44,7 +44,7 @@ import psutil
 
 from maxtext.utils import elastic_utils
 from maxtext.common.gcloud_stub import is_decoupled
-from maxtext.common.gcloud_stub import writer, _TENSORBOARDX_AVAILABLE
+from maxtext.common.gcloud_stub import writer, _TENSORBOARDX_AVAILABLE, StubSummaryWriter
 from maxtext.utils import max_logging
 from maxtext.common.common_types import MODEL_MODE_PREFILL, MODEL_MODE_AUTOREGRESSIVE, MODEL_MODE_TRAIN
 
@@ -182,7 +182,7 @@ def summarize_size_from_pytree(params):
   return num_params, num_bytes, num_bytes / num_params
 
 
-def initialize_summary_writer(tensorboard_dir, run_name):
+def initialize_summary_writer(tensorboard_dir, run_name, enable_tensorboard=True):
   """Return a tensorboardX SummaryWriter or a no-op stub.
 
   In decoupled mode (no Google Cloud), this prefers a repo-local
@@ -190,6 +190,10 @@ def initialize_summary_writer(tensorboard_dir, run_name):
   """
   if jax.process_index() != 0:
     return None
+
+  if not enable_tensorboard:
+    max_logging.log("TensorBoard disabled; using no-op SummaryWriter.")
+    return StubSummaryWriter()
 
   if not _TENSORBOARDX_AVAILABLE:
     max_logging.log("tensorboardX not available; using no-op SummaryWriter.")

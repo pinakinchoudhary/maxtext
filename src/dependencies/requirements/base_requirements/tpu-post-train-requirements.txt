@@ -30,6 +30,7 @@ python-json-logger
 pyzmq
 ray
 runai-model-streamer[s3,gcs]
+setuptools<81.0.0
 sortedcontainers
 torchax
 torchvision

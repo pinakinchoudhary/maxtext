@@ -381,6 +381,9 @@ Then:
 # One-time: layer Tunix on top of the MaxText base image
 bash src/maxtext/trainers/post_train/distillation/scripts/run_distill_xpk.sh prep_image
 
+# Bake ./src into a runner image and push to gcr.io/$XPK_PROJECT/...:${USER}-distill
+bash src/maxtext/trainers/post_train/distillation/scripts/run_distill_xpk.sh upload_runner
+
 # Submit a workload
 bash src/maxtext/trainers/post_train/distillation/scripts/run_distill_xpk.sh submit
 

@@ -231,9 +231,11 @@ class MaxTextDistillationTrainer(peft_trainer.PeftTrainer):
     self.strategy = strategy
 
     # Per-step per-device TFLOPs (constants for the run): student fwd+bwd + teacher fwd-only.
-    self._tflops_combined, self._tflops_student, self._tflops_teacher = (
-        distillation_utils.calculate_distillation_tflops_per_device(student_config, teacher_config, is_offline=is_offline)
-    )
+    (
+        self._tflops_combined,
+        self._tflops_student,
+        self._tflops_teacher,
+    ) = distillation_utils.calculate_distillation_tflops_per_device(student_config, teacher_config, is_offline=is_offline)
     max_logging.log(
         f"Per-step per-device TFLOPs — combined: {self._tflops_combined:.2f}, "
         f"student (fwd+bwd): {self._tflops_student:.2f}, teacher (fwd-only): {self._tflops_teacher:.2f}"
@@ -274,7 +276,7 @@ class MaxTextDistillationTrainer(peft_trainer.PeftTrainer):
     """Overrides the main JIT block to natively handle ModelBundle module."""
 
     batch = self.gen_model_input_fn(inputs)
-    current_step = model.training_step.value
+    current_step = model.training_step[...]
 
     def loss_wrapper(student, teacher, batch):
       if "teacher_output" in batch:
@@ -317,8 +319,7 @@ class MaxTextDistillationTrainer(peft_trainer.PeftTrainer):
 
     out, grads = grad_fn(model.student_model, model.teacher_model, batch)
 
-    # Increment step counter after loss computation
-    model.training_step.value = current_step + 1
+    model.training_step.set_value(current_step + 1)
 
     tunix_expects_grad_norm = getattr(self, "_tunix_expects_grad_norm", True)
 
@@ -671,7 +672,6 @@ def train_distill(
   # Hardware Execution (Safe Context)
   max_logging.log("Applying logical axis rules for model initialization and training...")
   with mesh, nn_partitioning.axis_rules(student_config.logical_axis_rules):
-
     # 2. Load Models
     if is_offline:
       max_logging.log("Offline Distillation: Skipping Teacher Model loading.")

@@ -453,7 +453,7 @@ class TestPartitionSpecUnwrapForAlignment(unittest.TestCase):
 
     # Mirror the unwrap done in from_pretrained.
     logical_axes_tree = jax.tree.map(
-        lambda v: v.value,
+        lambda v: v.get_value(),
         specs,
         is_leaf=lambda n: isinstance(n, nnx.Variable),
     )

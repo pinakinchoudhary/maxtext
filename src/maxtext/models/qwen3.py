@@ -556,7 +556,7 @@ class Qwen3NextGatedDeltaNet(nnx.Module):
     conv_state = None
     if model_mode != MODEL_MODE_TRAIN:
       # Retrieve state from self.cache
-      conv_state = self.cache.conv_state.value
+      conv_state = self.cache.conv_state[...]
       if conv_state.shape[0] != batch:
         # Assumes zero-initialized state for testing
         if conv_state.shape[0] == 1:
@@ -578,7 +578,7 @@ class Qwen3NextGatedDeltaNet(nnx.Module):
         new_conv_state = conv_input[:, -(conv_kernel_size - 1) :, :]
 
       # Update self.cache in place
-      self.cache.conv_state.value = new_conv_state
+      self.cache.conv_state.set_value(new_conv_state)
     else:
       # Train: pad with zeros
       conv_input = jnp.pad(qkv, ((0, 0), (conv_kernel_size - 1, 0), (0, 0)))
@@ -629,7 +629,7 @@ class Qwen3NextGatedDeltaNet(nnx.Module):
     recurrent_state = None
     if model_mode != MODEL_MODE_TRAIN:
       # Retrieve state from self.cache
-      recurrent_state = self.cache.recurrent_state.value
+      recurrent_state = self.cache.recurrent_state[...]
 
       if recurrent_state.shape[0] != batch:
         if recurrent_state.shape[0] == 1:
@@ -651,7 +651,7 @@ class Qwen3NextGatedDeltaNet(nnx.Module):
 
     if model_mode != MODEL_MODE_TRAIN:
       # Update self.cache in place for both prefill and decode
-      self.cache.recurrent_state.value = recurrent_state_out
+      self.cache.recurrent_state.set_value(recurrent_state_out)
 
     # =========================================================================
     # STEP D: Final Output Stage

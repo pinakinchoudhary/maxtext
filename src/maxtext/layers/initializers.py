@@ -60,10 +60,10 @@ def nd_dense_init(scale, mode, distribution):
   return init_fn
 
 
-def variable_to_logically_partitioned(variable: nnx.VariableState):
+def variable_to_logically_partitioned(variable: nnx.Variable):
   """Wraps an NNX variable's value in `nn.LogicallyPartitioned`.
 
-  This function inspects the metadata of an `nnx.VariableState` object. If
+  This function inspects the metadata of an `nnx.Variable` object. If
   sharding information ('out_sharding', 'sharding' or 'sharding_names') is
   present, it wraps the variable's value in `nn.LogicallyPartitioned` to apply
   the specified sharding constraints.
@@ -73,16 +73,17 @@ def variable_to_logically_partitioned(variable: nnx.VariableState):
   wrapping.
 
   Args:
-    variable: The `nnx.VariableState` object to process.
+    variable: The `nnx.Variable` object to process.
 
   Returns:
     The variable's value, potentially wrapped in `nn.LogicallyPartitioned`.
   """
-  if isinstance(variable.value, aqt_tensor.QTensor):
-    return variable.value
+  val = variable.get_value()
+  if isinstance(val, aqt_tensor.QTensor):
+    return val
 
   if variable.type.__name__ == "_overwrite_with_gradient":
-    return variable.value
+    return val
 
   metadata = variable.get_metadata()
   out_sharding = None
@@ -95,10 +96,10 @@ def variable_to_logically_partitioned(variable: nnx.VariableState):
 
   if out_sharding is not None:
     return nn.LogicallyPartitioned(  # type: ignore[wrong-keyword-args]
-        variable.value,
+        val,
         out_sharding,  # type: ignore[arg-type]
         mesh=metadata.get("mesh"),
         rules=metadata.get("rules"),
     )
   else:
-    return variable.value
+    return val

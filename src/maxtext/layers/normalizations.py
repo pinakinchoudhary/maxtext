@@ -81,7 +81,7 @@ class RMSNorm(nnx.Module):
         y = jax.lax.with_sharding_constraint(y, out_sharding)
       return y
 
-    scale = self.scale.value
+    scale = self.scale.get_value()
     # Move scale to device if parameter offloading is enabled
     if self.parameter_memory_host_offload:
       max_logging.log("normalizations.py: Moving scale parameter to device")

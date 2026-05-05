@@ -848,7 +848,7 @@ class HardwareAndMesh(BaseModel):
       description="Strategy for context parallelism ('all_gather' or 'ring').",
   )
   context_parallel_reorder_strategy: ReorderStrategy = Field(
-      "auto",
+      ReorderStrategy.AUTO,
       description="Reorder strategy for load-balanced context parallelism.",
   )
   custom_mesh: str = Field("", description="Available options: ['hybrid_ring_64x4', 'hybrid_ring_32x8']")

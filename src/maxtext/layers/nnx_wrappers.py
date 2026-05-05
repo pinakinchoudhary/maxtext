@@ -42,7 +42,7 @@ if hasattr(flax_config, "flax_always_shard_variable"):
   flax_config.update("flax_always_shard_variable", False)
 
 
-def is_vanilla_variable(vs: variablelib.VariableState) -> bool:
+def is_vanilla_variable(vs: variablelib.Variable) -> bool:
   """A variables state is vanilla if its metadata is essentially blank.
 
   Returns False only if it has non-empty hooks or any non-built-in attribute.
@@ -56,16 +56,16 @@ def is_vanilla_variable(vs: variablelib.VariableState) -> bool:
   return True
 
 
-def to_linen_var(vs: variablelib.VariableState) -> meta.AxisMetadata:
+def to_linen_var(vs: variablelib.Variable) -> meta.AxisMetadata:
   metadata = vs.get_metadata()
   if "linen_meta_type" in metadata:
     linen_type = metadata["linen_meta_type"]
     if hasattr(linen_type, "from_nnx_metadata"):
-      return linen_type.from_nnx_metadata({"value": vs.value, **metadata})
-    return linen_type(vs.value, **metadata)
+      return linen_type.from_nnx_metadata({"value": vs.get_value(), **metadata})
+    return linen_type(vs.get_value(), **metadata)
   if is_vanilla_variable(vs):
-    return vs.value
-  return nnx.bridge.NNXMeta(vs.type, vs.value, metadata)
+    return vs.get_value()
+  return nnx.bridge.NNXMeta(vs.type, vs.get_value(), metadata)
 
 
 def get_col_name(keypath: tp.Sequence[Any]) -> str:
@@ -126,9 +126,6 @@ def nnx_attrs_to_linen_vars(nnx_attrs: dict) -> dict:
   linen_structured = {}
   for kp, v in nnx.traversals.flatten_mapping(nnx_attrs).items():
     if isinstance(v, variablelib.Variable):
-      col_name = variablelib.variable_name_from_type(type(v))
-      v = to_linen_var(v.to_state())
-    elif isinstance(v, variablelib.VariableState):
       col_name = variablelib.variable_name_from_type(v.type)
       v = to_linen_var(v)
     else:
@@ -141,7 +138,7 @@ def nnx_attrs_to_linen_vars(nnx_attrs: dict) -> dict:
 def _set_initializing(module: Module, initializing: bool):
   for _, value in graph.iter_graph(module):
     if isinstance(value, Pytree):
-      value._object__state._initializing = initializing  # pylint: disable=protected-access
+      value._pytree__state._initializing = initializing  # pylint: disable=protected-access
 
 
 def lazy_init(fn: Module | tp.Callable[..., tp.Any], *args, **kwargs):
@@ -249,7 +246,7 @@ class ToNNX(Module):
     # rename default to params
     if "params" not in _rngs and "default" in _rngs:
       _rngs["params"] = _rngs.pop("default")
-    if self._object__state.initializing:
+    if self._pytree__state.initializing:
       out, updates = self.to_nnx__module.init_with_output(_rngs, *args, method=method, **kwargs)
     else:
       nnx_attrs = {
@@ -415,7 +412,7 @@ class ToLinen(linen.Module):
   args: tp.Sequence = ()
   kwargs: tp.Mapping[str, tp.Any] = FrozenDict({})
   skip_rng: bool = False
-  metadata_fn: tp.Callable[[variablelib.VariableState], tp.Any] | None = to_linen_var
+  metadata_fn: tp.Callable[[variablelib.Variable], tp.Any] | None = to_linen_var
 
   @linen.compact
   def __call__(self, *args, nnx_method: tp.Callable[..., Any] | str | None = None, **kwargs):
@@ -494,7 +491,7 @@ class ToLinen(linen.Module):
 
     # group state by collection
     for path, leaf in nnx.to_flat_state(state):
-      type_ = leaf.type if isinstance(leaf, nnx.VariableState) else type(leaf)
+      type_ = leaf.type if isinstance(leaf, nnx.Variable) else type(leaf)
       collection = variablelib.variable_name_from_type(type_, allow_register=True)
       if collection not in collection_flat_state:
         collection_flat_state[collection] = []
@@ -505,18 +502,18 @@ class ToLinen(linen.Module):
       if self.is_mutable_collection(collection):
 
         def _to_linen_var(x):
-          if isinstance(x, nnx.VariableState):
+          if isinstance(x, nnx.Variable):
             if self.metadata_fn is not None:
               return self.metadata_fn(x)  # pylint: disable=too-many-function-args
             else:
-              return x.value
+              return x.get_value()
           return x
 
         collection_state = nnx.traversals.unflatten_mapping(flat_state)
         collection_state = jax.tree.map(
             _to_linen_var,
             collection_state,
-            is_leaf=lambda x: isinstance(x, nnx.VariableState),
+            is_leaf=lambda x: isinstance(x, nnx.Variable),
         )
         for k, v in collection_state.items():
           self.put_variable(collection, k, v)
@@ -532,7 +529,7 @@ _MISSING = _Missing()
 def to_linen(
     nnx_class: tp.Callable[..., Module],
     *args,
-    metadata_fn: tp.Callable[[variablelib.VariableState], tp.Any] | None = to_linen_var,
+    metadata_fn: tp.Callable[[variablelib.Variable], tp.Any] | None = to_linen_var,
     name: str | None = None,
     skip_rng: bool = False,
     abstract_init: bool = True,
@@ -551,7 +548,7 @@ def to_linen(
 
 def to_linen_class(
     base_nnx_class: type[M],
-    base_metadata_fn: tp.Callable[[variablelib.VariableState], tp.Any] | None = to_linen_var,
+    base_metadata_fn: tp.Callable[[variablelib.Variable], tp.Any] | None = to_linen_var,
     base_skip_rng: bool = False,
     **partial_kwargs: tp.Any,
 ) -> type[ToLinen]:

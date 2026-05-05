@@ -94,7 +94,7 @@ jobs:
             PAPERMILL_EXE=".venv/bin/papermill"
             source .venv/bin/activate
           fi
-          export PYTHONPATH="${pwd}/src${PYTHONPATH:+:${PYTHONPATH}}"
+          export PYTHONPATH="${PWD}/src${PYTHONPATH:+:${PYTHONPATH}}"
 
           export MAXTEXT_REPO_ROOT=$(pwd)
           export MAXTEXT_PKG_DIR=$(pwd)/src/maxtext

@@ -1200,7 +1200,7 @@ class MLA(Attention):
             sparse_loss=self.config.indexer_sparse_training,
             scaling_factor=self.config.indexer_loss_scaling_factor,
         )
-        self.sow(nnx.Intermediate, "indexer_loss", indexer_loss)
+        self.indexer_loss = nnx.Intermediate(indexer_loss)
 
     # Check if we need QK Clip stats
     use_qk_clip = self.model_mode == MODEL_MODE_TRAIN and self.config.use_qk_clip

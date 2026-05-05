@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" multi_token_prediction_test """
+"""multi_token_prediction_test"""
 
 import unittest
 
@@ -248,8 +248,8 @@ class MultiTokenPredictionBlockTest(unittest.TestCase):
     self.assertTrue(hasattr(state.mtp_block, "weights"))
 
     # Access the actual data tuple inside the .value attribute.
-    losses_val = state.mtp_block.losses.value
-    weights_val = state.mtp_block.weights.value
+    losses_val = state.mtp_block.losses[...]
+    weights_val = state.mtp_block.weights[...]
 
     self.assertEqual(len(losses_val), self.cfg.mtp_num_layers)
     self.assertEqual(len(weights_val), self.cfg.mtp_num_layers)
@@ -283,8 +283,8 @@ class MultiTokenPredictionBlockTest(unittest.TestCase):
 
     # Perform the aggregation logic exactly as in `loss_fn`.
     if mtp_losses_var and mtp_weights_var:
-      sum_of_all_mtp_losses = jnp.sum(jnp.array(mtp_losses_var.value))
-      sum_of_all_mtp_weights = jnp.sum(jnp.array(mtp_weights_var.value))
+      sum_of_all_mtp_losses = jnp.sum(jnp.array(mtp_losses_var[...]))
+      sum_of_all_mtp_weights = jnp.sum(jnp.array(mtp_weights_var[...]))
 
       self.assertGreater(sum_of_all_mtp_weights, 0)
 

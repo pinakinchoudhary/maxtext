@@ -2,6 +2,7 @@ name: "Update HLO References (for hlo_diff_test.py)"
 
 on:
   workflow_dispatch:
+
 permissions:
   contents: read
 

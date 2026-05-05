@@ -74,14 +74,13 @@ on:
         required: false
         type: boolean
         default: false
-
 permissions:
   contents: read
 jobs:
   run:
     runs-on: ${{ inputs.cloud_runner != '' && inputs.cloud_runner || fromJson(format('["self-hosted", "{0}", "{1}"]', inputs.device_type, inputs.device_name)) }}
     container:
-      image: gcr.io/tpu-prod-env-multipod/${{ inputs.base_image }}
+      image: gcr.io/${{ vars.PROJECT_NAME }}/${{ inputs.base_image }}
       env:
         XLA_PYTHON_CLIENT_MEM_FRACTION: ${{ inputs.xla_python_client_mem_fraction }}
         TF_FORCE_GPU_ALLOW_GROWTH: ${{ inputs.tf_force_gpu_allow_growth }}
@@ -141,7 +140,7 @@ jobs:
             uv pip install pytest-cov
             PYTEST_COV_ARGS="--cov=MaxText --cov=maxtext --cov-report=xml --cov-report=term"
           fi
-          export PYTHONPATH="${pwd}/src${PYTHONPATH:+:${PYTHONPATH}}"
+          export PYTHONPATH="${PWD}/src${PYTHONPATH:+:${PYTHONPATH}}"
 
           if [ "${INPUTS_IS_SCHEDULED_RUN}" == "true" ]; then
             FINAL_PYTEST_MARKER="${INPUTS_PYTEST_MARKER}"

@@ -556,14 +556,20 @@ class ParseFeatures(grain.MapTransform):
     example.ParseFromString(element)
     features = example.features.feature
 
+    missing = [c for c in self.data_columns if c not in features]
+    if missing:
+      raise ValueError(
+          f"Column {missing} not found in dataset. Available columns: {sorted(features.keys())}. "
+          "Please set train_data_columns or eval_data_columns accordingly."
+      )
+
     parsed = {}
     for col in self.data_columns:
-      if col in features:
-        f = features[col]
-        if self.tokenize:
-          parsed[col] = np.array(f.bytes_list.value, dtype=object)
-        else:
-          parsed[col] = np.array(f.int64_list.value, dtype=np.int32)
+      f = features[col]
+      if self.tokenize:
+        parsed[col] = np.array(f.bytes_list.value, dtype=object)
+      else:
+        parsed[col] = np.array(f.int64_list.value, dtype=np.int32)
     return parsed
 
 
@@ -601,6 +607,12 @@ class KeepFeatures(grain.MapTransform):
 
   def map(self, element: dict[str, Any]) -> dict[str, Any]:
     """Applies the feature filtering to the input element."""
+    missing = [n for n in self.feature_names if n not in element]
+    if missing:
+      raise ValueError(
+          f"Column {missing} not found in dataset. Available columns: {sorted(element.keys())}. "
+          "Please set train_data_columns or eval_data_columns accordingly."
+      )
     return {k: v for k, v in element.items() if k in self.feature_names}
 
 

@@ -31,7 +31,7 @@ This module provides a config-driven validation entrypoint that:
 			rollout_tensor_parallelism=4 hbm_utilization_vllm=0.6 async_scheduling=false \
 			prompt="Paris is" hf_access_token=<token>
 
-Currently this validator supports qwen3 converter flows.
+Currently this validator supports: qwen3-30b-a3b, qwen3-30b-a3b-base, qwen3-235b-a22b, gemma4-26b.
 """
 
 import functools
@@ -43,6 +43,7 @@ from typing import Sequence
 from absl import app
 import jax
 from flax import nnx
+import transformers
 from vllm import LLM
 from vllm import SamplingParams
 
@@ -51,6 +52,7 @@ from maxtext.configs import pyconfig
 from maxtext.integration.vllm.torchax_converter.base import GREEN
 from maxtext.integration.vllm.torchax_converter.base import RESET
 from maxtext.integration.vllm.torchax_converter.base import timer
+from maxtext.integration.vllm.torchax_converter.gemma4_moe import Gemma4MaxTextToVLLMConverter
 from maxtext.integration.vllm.torchax_converter.qwen3_moe import Qwen3MaxTextToVLLMConverter
 from maxtext.utils import model_creation_utils
 
@@ -62,6 +64,7 @@ vllm_model_name_mapping = {
     "qwen3-30b-a3b": "Qwen/Qwen3-30B-A3B",
     "qwen3-30b-a3b-base": "Qwen/Qwen3-30B-A3B",
     "qwen3-235b-a22b": "Qwen/Qwen3-235B-A22B",
+    "gemma4-26b": "google/gemma-4-26B-A4B",
     # Add more mappings as needed
 }
 
@@ -96,10 +99,19 @@ def _get_maxtext_model(config):
   return model, mesh
 
 
+def save_dict_to_file(state_dict, filename):
+  with open(filename, "w", encoding="utf-8") as f:
+    for key in sorted(state_dict.keys()):
+      f.write(f"{key}: {state_dict[key].shape}\n")
+
+
 def validate_converter(config) -> None:
   """Run end-to-end validation for MaxText to vLLM weight conversion."""
-  if not config.model_name.startswith("qwen3"):
-    raise ValueError("validate_converter.py currently supports qwen3 models only. " f"Got {config.model_name}.")
+  if config.model_name not in vllm_model_name_mapping:
+    raise ValueError(
+        f"validate_converter.py does not support model '{config.model_name}'. "
+        f"Supported models: {sorted(vllm_model_name_mapping.keys())}"
+    )
 
   model, mesh = _get_maxtext_model(config)
   print(f"{GREEN}MaxText model loaded successfully{RESET}")
@@ -116,7 +128,10 @@ def validate_converter(config) -> None:
       logging.info("Name: %s, shape: %s", path_str, leaf.shape)
       logging.info("\tSharding: %s", leaf.sharding)
 
-  converter = Qwen3MaxTextToVLLMConverter(config, mesh)
+  if config.model_name.startswith("gemma4"):
+    converter = Gemma4MaxTextToVLLMConverter(config, mesh)
+  else:
+    converter = Qwen3MaxTextToVLLMConverter(config, mesh)
   with timer("Overall Conversion"):
     vllm_state = converter.convert(model_state)
   del model_state
@@ -131,9 +146,12 @@ def validate_converter(config) -> None:
       tensor_parallel_size=config.rollout_tensor_parallelism,
       gpu_memory_utilization=getattr(config, "hbm_utilization_vllm", 0.5),
       async_scheduling=getattr(config, "async_scheduling", False),
+      # load_format="dummy",
   )
   print("\n" + "=" * 80)
   llm_state = llm.llm_engine.model_executor.driver_worker.model_runner.state
+  # save_dict_to_file(llm_state, "vllm_model_state.txt")
+  # save_dict_to_file(vllm_state, "converted_vllm_state.txt")
 
   any_src = next(iter(vllm_state.values()))
   any_src_arr = any_src.value if hasattr(any_src, "value") else any_src
@@ -165,6 +183,21 @@ def validate_converter(config) -> None:
 
   sampling_params = SamplingParams(temperature=0.0, max_tokens=10)
   prompt = getattr(config, "prompt", "Paris is")
+  if getattr(config, "use_chat_template", False):
+    tokenizer_path = getattr(config, "tokenizer_path", None) or vllm_model_name_mapping[config.model_name]
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        tokenizer_path,
+        token=getattr(config, "hf_access_token", None),
+    )
+    messages = [{"role": "user", "content": prompt}]
+    prompt = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+        add_special_tokens=False,
+    )
+  elif config.model_name.startswith("gemma4") and not prompt.startswith("<bos>"):
+    prompt = "<bos>" + prompt
   print("\n" + "=" * 80)
   print("Generation test after weight transfer:")
   with timer("Generation"):
